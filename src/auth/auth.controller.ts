@@ -1,4 +1,4 @@
-import { Body, Controller, Post, BadRequestException} from '@nestjs/common';
+import { Body, Controller, Post, BadRequestException, HttpException, HttpStatus} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register-auth.dto';
 import { prisma } from 'src/database';
@@ -18,23 +18,31 @@ export class AuthController {
 
       // Validar los datos
       if (!name || !email || !password || !image_url) {
-        return {
-          status: 'error',
-          code: 400,
-          message: 'Todos los campos son requeridos.'
-        }
+        throw new HttpException(
+          {
+            status: 'error',
+            code: 400,
+            message: 'Todos los campos son requeridos',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
+
+      console.log(name, email, password, image_url)
   
   
       // Verificar si el correo electrónico ya existe
       const existingUser = await prisma.user.findUnique({ where: { email } });
 
       if (existingUser) {
-        return {
-          status: 'error',
-          code: 400,
-          message: 'El correo electrónico ya existe.'
-        }
+        throw new HttpException(
+          {
+            status: 'error',
+            code: 400,
+            message: 'El correo electrónico ya existe.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
   
 
@@ -64,61 +72,72 @@ export class AuthController {
       };
 
     }
-    catch(error){
+
+    catch (error) {
       console.log(error)
-      return {
-        status: 'error',
-        code: 400,
-        message: 'Error al registrar el usuario'
-      }
+      throw new HttpException(
+        {
+          status: 'error',
+          code: 400,
+          message: error.message || 'Error al registrar el usuario',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
+    
   }
 
 
 
   @Post('/login')
   async login(@Body() params: LoginDto) {
-    try{
-
-      const { email, password } = params;
-
-      if(!email || !password){
-        return {
+    const { email, password } = params;
+  
+    // Validar los campos
+    if (!email || !password) {
+      throw new HttpException(
+        {
           status: 'error',
           code: 400,
-          message: 'Todos los campos son requeridos.'
-        }
-      }
-
-
+          message: 'Todos los campos son requeridos.',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  
+    try {
       // Verificar si el correo electrónico existe
       const user = await prisma.user.findUnique({ where: { email } });
       if (!user) {
-        return {
-          status: 'error',
-          code: 400,
-          message: 'El correo electrónico no existe.'
-        }
+        throw new HttpException(
+          {
+            status: 'error',
+            code: 400,
+            message: 'El correo electrónico no existe.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
-
-
+  
       // Verificar la contraseña
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        return {
-          status: 'error',
-          code: 400,
-          message: 'La contraseña es incorrecta.'
-        }
+        throw new HttpException(
+          {
+            status: 'error',
+            code: 400,
+            message: 'La contraseña es incorrecta.',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
-
-
-      // Crear el token 
+  
+      // Crear el token
       const token = this.authService.createToken(user);
-
+  
       // Excluir la contraseña de la respuesta
       const { password: _, ...userWithoutPassword } = user;
-
+  
       return {
         status: 'success',
         code: 200,
@@ -126,15 +145,17 @@ export class AuthController {
         user: userWithoutPassword,
         token
       };
-
-    }
-    catch(error){
-      console.log(error)
-      return {
-        status: 'error',
-        code: 400,
-        message: 'Error al iniciar sesión'
-      }
+    } catch (error) {
+      console.log(error);
+      throw new HttpException(
+        {
+          status: 'error',
+          code: 400,
+          message: error.message || 'Error al iniciar sesión',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
     }
   }
+  
 }
