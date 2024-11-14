@@ -1,18 +1,19 @@
-import { Body, Controller, Post, BadRequestException, HttpException, HttpStatus} from '@nestjs/common';
+import { Body, Controller, Post, BadRequestException, HttpException, HttpStatus, Get, UnauthorizedException, Headers } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register-auth.dto';
 import { prisma } from 'src/database';
 import * as bcrypt from 'bcrypt';
 import { LoginDto } from './dto/login-auth.dto';
+import { User } from './auth.interface';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Post('/register')
   async register(@Body() params: RegisterDto) {
 
-    try{
+    try {
 
       const { name, email, password, image_url } = params;
 
@@ -28,9 +29,6 @@ export class AuthController {
         );
       }
 
-      console.log(name, email, password, image_url)
-  
-  
       // Verificar si el correo electrónico ya existe
       const existingUser = await prisma.user.findUnique({ where: { email } });
 
@@ -44,13 +42,13 @@ export class AuthController {
           HttpStatus.BAD_REQUEST,
         );
       }
-  
+
 
       //Encriptar la contraseña
       const hashedPassword = await bcrypt.hash(params.password, 10);
       params.password = hashedPassword;
 
-  
+
       //Crear el usuario
       const user = await prisma.user.create({
         data: params
@@ -84,7 +82,7 @@ export class AuthController {
         HttpStatus.BAD_REQUEST,
       );
     }
-    
+
   }
 
 
@@ -92,7 +90,7 @@ export class AuthController {
   @Post('/login')
   async login(@Body() params: LoginDto) {
     const { email, password } = params;
-  
+
     // Validar los campos
     if (!email || !password) {
       throw new HttpException(
@@ -104,7 +102,7 @@ export class AuthController {
         HttpStatus.BAD_REQUEST,
       );
     }
-  
+
     try {
       // Verificar si el correo electrónico existe
       const user = await prisma.user.findUnique({ where: { email } });
@@ -118,7 +116,7 @@ export class AuthController {
           HttpStatus.BAD_REQUEST,
         );
       }
-  
+
       // Verificar la contraseña
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
@@ -131,13 +129,13 @@ export class AuthController {
           HttpStatus.BAD_REQUEST,
         );
       }
-  
+
       // Crear el token
       const token = this.authService.createToken(user);
-  
+
       // Excluir la contraseña de la respuesta
       const { password: _, ...userWithoutPassword } = user;
-  
+
       return {
         status: 'success',
         code: 200,
@@ -157,5 +155,30 @@ export class AuthController {
       );
     }
   }
+
+
+  @Get('/user')
+  async getUser(@Headers('Authorization') authorization: string): Promise<User> {
+    try {
+      if (!authorization) {
+        throw new UnauthorizedException('No token provided');
+      }
+
+      const token = authorization;
+      return this.authService.decodeToken(token);
+    }
+    catch (error) {
+      throw new HttpException(
+        {
+          status: 'error',
+          code: 400,
+          message: error.message || 'Error al obtener el usuario',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+
+  }
   
+
 }
