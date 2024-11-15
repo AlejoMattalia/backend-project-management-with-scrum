@@ -305,8 +305,6 @@ export class FriendController {
     }
   }
 
-
-  // Obtener amigos
   @Get('friends/:userId')
   async getFriends(@Param('userId') userId: string) {
     try {
@@ -323,11 +321,24 @@ export class FriendController {
 
       const friends = await prisma.friend.findMany({
         where: {
-          userId: userId,
           status: 'accepted',
+          OR: [
+            { userId: userId },
+            { friendId: userId },
+          ],
         },
         select: {
+          userId: true,
+          friendId: true,
           friend: {
+            select: {
+              id: true,
+              name: true,
+              image_url: true,
+              email: true,
+            },
+          },
+          user: {
             select: {
               id: true,
               name: true,
@@ -338,8 +349,10 @@ export class FriendController {
         },
       });
 
-      // Map the result to extract only the friend details
-      return friends.map((friend) => friend.friend);
+      // Mapear los resultados para extraer los datos del amigo correcto
+      return friends.map((friend) =>
+        friend.userId === userId ? friend.friend : friend.user
+      );
     } catch (error) {
       throw new HttpException(
         {
@@ -351,5 +364,7 @@ export class FriendController {
       );
     }
   }
+
+
 
 }
